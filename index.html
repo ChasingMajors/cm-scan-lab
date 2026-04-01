@@ -1,0 +1,303 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Chasing Majors Scan Lab</title>
+  <script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
+  <style>
+    :root{
+      --bg:#0b0b0b;
+      --card:#151515;
+      --line:#2a2a2a;
+      --text:#f5f5f5;
+      --muted:#a7a7a7;
+      --accent:#2d7ff9;
+      --good:#21c55d;
+      --warn:#f59e0b;
+    }
+    *{box-sizing:border-box}
+    body{
+      margin:0;
+      background:var(--bg);
+      color:var(--text);
+      font-family:Arial,Helvetica,sans-serif;
+      padding:20px;
+    }
+    .wrap{
+      max-width:900px;
+      margin:0 auto;
+    }
+    h1{
+      margin:0 0 10px;
+      font-size:28px;
+    }
+    p.lead{
+      margin:0 0 20px;
+      color:var(--muted);
+    }
+    .card{
+      background:var(--card);
+      border:1px solid var(--line);
+      border-radius:16px;
+      padding:16px;
+      margin:0 0 16px;
+    }
+    .row{
+      display:grid;
+      gap:16px;
+    }
+    @media (min-width:900px){
+      .row{
+        grid-template-columns:1fr 1fr;
+      }
+    }
+    .btn{
+      appearance:none;
+      border:none;
+      border-radius:12px;
+      background:var(--accent);
+      color:#fff;
+      font-weight:700;
+      padding:12px 16px;
+      cursor:pointer;
+    }
+    .btn[disabled]{
+      opacity:.5;
+      cursor:not-allowed;
+    }
+    .muted{ color:var(--muted); }
+    .status{
+      margin-top:12px;
+      font-size:14px;
+      color:var(--muted);
+      min-height:20px;
+    }
+    textarea, pre{
+      width:100%;
+      background:#0f0f0f;
+      color:#fff;
+      border:1px solid var(--line);
+      border-radius:12px;
+      padding:12px;
+      font-size:14px;
+      line-height:1.4;
+      overflow:auto;
+    }
+    textarea{ min-height:180px; }
+    img.preview{
+      width:100%;
+      max-height:520px;
+      object-fit:contain;
+      background:#0f0f0f;
+      border:1px solid var(--line);
+      border-radius:12px;
+    }
+    .result-item{
+      border:1px solid var(--line);
+      border-radius:12px;
+      padding:12px;
+      margin-top:10px;
+      background:#101010;
+    }
+    .tag{
+      display:inline-block;
+      padding:4px 8px;
+      border-radius:999px;
+      font-size:12px;
+      font-weight:700;
+      margin-right:6px;
+      margin-top:6px;
+      background:#1b1b1b;
+      border:1px solid var(--line);
+      color:#ddd;
+    }
+    .score{
+      color:var(--good);
+      font-weight:700;
+    }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <h1>Chasing Majors Scan Lab</h1>
+    <p class="lead">Upload a card image, extract visible text, and find the best card match.</p>
+
+    <div class="card">
+      <input id="fileInput" type="file" accept="image/*" />
+      <div style="margin-top:12px;">
+        <button id="scanBtn" class="btn">Scan Card</button>
+      </div>
+      <div id="status" class="status">Waiting for image...</div>
+    </div>
+
+    <div class="row">
+      <div class="card">
+        <h3>Image Preview</h3>
+        <img id="preview" class="preview" alt="Preview" />
+      </div>
+
+      <div class="card">
+        <h3>OCR Text</h3>
+        <textarea id="ocrText" placeholder="OCR output will appear here..."></textarea>
+      </div>
+    </div>
+
+    <div class="card">
+      <h3>Best Match</h3>
+      <div id="bestMatch" class="muted">No result yet.</div>
+    </div>
+
+    <div class="card">
+      <h3>Top Candidates</h3>
+      <div id="candidates" class="muted">No candidates yet.</div>
+    </div>
+  </div>
+
+  <script>
+    // IMPORTANT:
+    // Replace this with your deployed Apps Script web app URL once ready.
+    const API_URL = "PASTE_YOUR_APPS_SCRIPT_WEB_APP_URL_HERE";
+
+    const fileInput = document.getElementById("fileInput");
+    const scanBtn = document.getElementById("scanBtn");
+    const preview = document.getElementById("preview");
+    const ocrText = document.getElementById("ocrText");
+    const statusEl = document.getElementById("status");
+    const bestMatchEl = document.getElementById("bestMatch");
+    const candidatesEl = document.getElementById("candidates");
+
+    let selectedFile = null;
+    let dataUrl = "";
+
+    fileInput.addEventListener("change", () => {
+      const file = fileInput.files && fileInput.files[0];
+      if (!file) return;
+
+      selectedFile = file;
+      const reader = new FileReader();
+      reader.onload = e => {
+        dataUrl = e.target.result;
+        preview.src = dataUrl;
+        statusEl.textContent = `Loaded image: ${file.name}`;
+      };
+      reader.readAsDataURL(file);
+    });
+
+    scanBtn.addEventListener("click", async () => {
+      if (!selectedFile || !dataUrl) {
+        alert("Please choose an image first.");
+        return;
+      }
+
+      scanBtn.disabled = true;
+      bestMatchEl.innerHTML = "Working...";
+      candidatesEl.innerHTML = "Working...";
+      ocrText.value = "";
+      statusEl.textContent = "Running OCR...";
+
+      try {
+        const { data } = await Tesseract.recognize(dataUrl, "eng", {
+          logger: m => {
+            if (m.status) {
+              statusEl.textContent = `${m.status}${m.progress ? ` (${Math.round(m.progress * 100)}%)` : ""}`;
+            }
+          }
+        });
+
+        const text = (data.text || "").trim();
+        ocrText.value = text;
+        statusEl.textContent = "OCR complete. Sending text to matcher...";
+
+        if (!API_URL || API_URL.includes("PASTE_YOUR_APPS_SCRIPT_WEB_APP_URL_HERE")) {
+          bestMatchEl.innerHTML = "<span class='muted'>OCR complete. Add your Apps Script URL next.</span>";
+          candidatesEl.innerHTML = "";
+          scanBtn.disabled = false;
+          return;
+        }
+
+        const resp = await fetch(API_URL, {
+          method: "POST",
+          headers: { "Content-Type": "text/plain;charset=utf-8" },
+          body: JSON.stringify({
+            route: "scan_match",
+            ocr_text: text
+          })
+        });
+
+        const json = await resp.json();
+        renderResults(json);
+        statusEl.textContent = "Done.";
+      } catch (err) {
+        console.error(err);
+        statusEl.textContent = "Error.";
+        bestMatchEl.textContent = "Something went wrong. Check console.";
+        candidatesEl.textContent = "";
+      } finally {
+        scanBtn.disabled = false;
+      }
+    });
+
+    function renderResults(json) {
+      if (!json || !json.ok) {
+        bestMatchEl.innerHTML = `<span class="muted">No valid response from matcher.</span>`;
+        candidatesEl.innerHTML = "";
+        return;
+      }
+
+      const best = json.best_match;
+      const parsed = json.parsed || {};
+
+      if (best) {
+        bestMatchEl.innerHTML = `
+          <div class="result-item">
+            <div><strong>${escapeHtml(best.player || "")}</strong> #${escapeHtml(best.card_no || "")}</div>
+            <div class="muted" style="margin-top:6px;">
+              ${escapeHtml(best.release_name || best.code || "")}
+            </div>
+            <div class="muted" style="margin-top:6px;">
+              ${escapeHtml(best.team || "")} · ${escapeHtml(best.section || "")} · ${escapeHtml(best.subset || "")}
+            </div>
+            <div style="margin-top:8px;">
+              <span class="score">Score: ${best.score ?? 0}</span>
+            </div>
+            <div style="margin-top:10px;">
+              <span class="tag">Player parsed: ${escapeHtml(parsed.player || "—")}</span>
+              <span class="tag">Card no parsed: ${escapeHtml(parsed.card_no || "—")}</span>
+              <span class="tag">Team parsed: ${escapeHtml(parsed.team || "—")}</span>
+            </div>
+          </div>
+        `;
+      } else {
+        bestMatchEl.innerHTML = `<span class="muted">No strong match found.</span>`;
+      }
+
+      const candidates = Array.isArray(json.candidates) ? json.candidates : [];
+      if (!candidates.length) {
+        candidatesEl.innerHTML = `<span class="muted">No candidates returned.</span>`;
+        return;
+      }
+
+      candidatesEl.innerHTML = candidates.map(c => `
+        <div class="result-item">
+          <div><strong>${escapeHtml(c.player || "")}</strong> #${escapeHtml(c.card_no || "")}</div>
+          <div class="muted" style="margin-top:6px;">${escapeHtml(c.release_name || c.code || "")}</div>
+          <div class="muted" style="margin-top:6px;">
+            ${escapeHtml(c.team || "")} · ${escapeHtml(c.section || "")} · ${escapeHtml(c.subset || "")}
+          </div>
+          <div style="margin-top:8px;"><span class="score">Score: ${c.score ?? 0}</span></div>
+        </div>
+      `).join("");
+    }
+
+    function escapeHtml(str) {
+      return String(str)
+        .replaceAll("&", "&amp;")
+        .replaceAll("<", "&lt;")
+        .replaceAll(">", "&gt;")
+        .replaceAll('"', "&quot;")
+        .replaceAll("'", "&#039;");
+    }
+  </script>
+</body>
+</html>
