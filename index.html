@@ -14,7 +14,6 @@
       --muted:#a7a7a7;
       --accent:#2d7ff9;
       --good:#21c55d;
-      --warn:#f59e0b;
     }
     *{box-sizing:border-box}
     body{
@@ -24,18 +23,9 @@
       font-family:Arial,Helvetica,sans-serif;
       padding:20px;
     }
-    .wrap{
-      max-width:900px;
-      margin:0 auto;
-    }
-    h1{
-      margin:0 0 10px;
-      font-size:28px;
-    }
-    p.lead{
-      margin:0 0 20px;
-      color:var(--muted);
-    }
+    .wrap{max-width:1100px;margin:0 auto}
+    h1{margin:0 0 10px;font-size:28px}
+    .lead{margin:0 0 20px;color:var(--muted)}
     .card{
       background:var(--card);
       border:1px solid var(--line);
@@ -43,14 +33,12 @@
       padding:16px;
       margin:0 0 16px;
     }
-    .row{
+    .grid{
       display:grid;
       gap:16px;
     }
     @media (min-width:900px){
-      .row{
-        grid-template-columns:1fr 1fr;
-      }
+      .grid.two{grid-template-columns:1fr 1fr}
     }
     .btn{
       appearance:none;
@@ -62,19 +50,19 @@
       padding:12px 16px;
       cursor:pointer;
     }
-    .btn[disabled]{
-      opacity:.5;
-      cursor:not-allowed;
-    }
-    .muted{ color:var(--muted); }
-    .status{
-      margin-top:12px;
-      font-size:14px;
-      color:var(--muted);
-      min-height:20px;
-    }
-    textarea, pre{
+    .btn[disabled]{opacity:.5;cursor:not-allowed}
+    .status{margin-top:12px;font-size:14px;color:var(--muted);min-height:20px}
+    .preview{
       width:100%;
+      max-height:420px;
+      object-fit:contain;
+      background:#0f0f0f;
+      border:1px solid var(--line);
+      border-radius:12px;
+    }
+    textarea{
+      width:100%;
+      min-height:180px;
       background:#0f0f0f;
       color:#fff;
       border:1px solid var(--line);
@@ -82,16 +70,6 @@
       padding:12px;
       font-size:14px;
       line-height:1.4;
-      overflow:auto;
-    }
-    textarea{ min-height:180px; }
-    img.preview{
-      width:100%;
-      max-height:520px;
-      object-fit:contain;
-      background:#0f0f0f;
-      border:1px solid var(--line);
-      border-radius:12px;
     }
     .result-item{
       border:1px solid var(--line);
@@ -100,6 +78,8 @@
       margin-top:10px;
       background:#101010;
     }
+    .muted{color:var(--muted)}
+    .score{color:var(--good);font-weight:700}
     .tag{
       display:inline-block;
       padding:4px 8px;
@@ -112,35 +92,61 @@
       border:1px solid var(--line);
       color:#ddd;
     }
-    .score{
-      color:var(--good);
-      font-weight:700;
+    label.small{
+      display:block;
+      margin-bottom:8px;
+      color:var(--muted);
+      font-size:13px;
     }
   </style>
 </head>
 <body>
   <div class="wrap">
     <h1>Chasing Majors Scan Lab</h1>
-    <p class="lead">Upload a card image, extract visible text, and find the best card match.</p>
+    <p class="lead">Upload front and back images. The lab prioritizes the back for OCR and matching.</p>
 
     <div class="card">
-      <input id="fileInput" type="file" accept="image/*" />
-      <div style="margin-top:12px;">
-        <button id="scanBtn" class="btn">Scan Card</button>
+      <div class="grid two">
+        <div>
+          <label class="small">Front image</label>
+          <input id="frontInput" type="file" accept="image/*" />
+        </div>
+        <div>
+          <label class="small">Back image</label>
+          <input id="backInput" type="file" accept="image/*" />
+        </div>
       </div>
-      <div id="status" class="status">Waiting for image...</div>
+      <div style="margin-top:12px;">
+        <button id="scanBtn" class="btn">Identify Card</button>
+      </div>
+      <div id="status" class="status">Waiting for images...</div>
     </div>
 
-    <div class="row">
+    <div class="grid two">
       <div class="card">
-        <h3>Image Preview</h3>
-        <img id="preview" class="preview" alt="Preview" />
+        <h3>Front Preview</h3>
+        <img id="frontPreview" class="preview" alt="Front preview" />
       </div>
+      <div class="card">
+        <h3>Back Preview</h3>
+        <img id="backPreview" class="preview" alt="Back preview" />
+      </div>
+    </div>
 
+    <div class="grid two">
       <div class="card">
-        <h3>OCR Text</h3>
-        <textarea id="ocrText" placeholder="OCR output will appear here..."></textarea>
+        <h3>OCR Front</h3>
+        <textarea id="ocrFront" placeholder="Front OCR text will appear here..."></textarea>
       </div>
+      <div class="card">
+        <h3>OCR Back</h3>
+        <textarea id="ocrBack" placeholder="Back OCR text will appear here..."></textarea>
+      </div>
+    </div>
+
+    <div class="card">
+      <h3>Combined OCR Sent to Matcher</h3>
+      <textarea id="ocrCombined" placeholder="Combined OCR will appear here..."></textarea>
     </div>
 
     <div class="card">
@@ -155,61 +161,89 @@
   </div>
 
   <script>
-    // IMPORTANT:
-    // Replace this with your deployed Apps Script web app URL once ready.
-    const API_URL = "https://script.google.com/macros/s/AKfycby4DNYPMZos9HX5EaLhOGOezgvPWtDZIJHW4iod7-sHunANEtXM92hl4mhd7TVyjUf2eg/exec";
+    const API_URL = "PASTE_YOUR_APPS_SCRIPT_WEB_APP_URL_HERE";
 
-    const fileInput = document.getElementById("fileInput");
+    const frontInput = document.getElementById("frontInput");
+    const backInput = document.getElementById("backInput");
     const scanBtn = document.getElementById("scanBtn");
-    const preview = document.getElementById("preview");
-    const ocrText = document.getElementById("ocrText");
     const statusEl = document.getElementById("status");
+
+    const frontPreview = document.getElementById("frontPreview");
+    const backPreview = document.getElementById("backPreview");
+
+    const ocrFrontEl = document.getElementById("ocrFront");
+    const ocrBackEl = document.getElementById("ocrBack");
+    const ocrCombinedEl = document.getElementById("ocrCombined");
+
     const bestMatchEl = document.getElementById("bestMatch");
     const candidatesEl = document.getElementById("candidates");
 
-    let selectedFile = null;
-    let dataUrl = "";
+    let frontDataUrl = "";
+    let backDataUrl = "";
 
-    fileInput.addEventListener("change", () => {
-      const file = fileInput.files && fileInput.files[0];
+    frontInput.addEventListener("change", async () => {
+      const file = frontInput.files && frontInput.files[0];
       if (!file) return;
+      frontDataUrl = await fileToDataUrl(file);
+      frontPreview.src = frontDataUrl;
+      statusEl.textContent = `Loaded front: ${file.name}`;
+    });
 
-      selectedFile = file;
-      const reader = new FileReader();
-      reader.onload = e => {
-        dataUrl = e.target.result;
-        preview.src = dataUrl;
-        statusEl.textContent = `Loaded image: ${file.name}`;
-      };
-      reader.readAsDataURL(file);
+    backInput.addEventListener("change", async () => {
+      const file = backInput.files && backInput.files[0];
+      if (!file) return;
+      backDataUrl = await fileToDataUrl(file);
+      backPreview.src = backDataUrl;
+      statusEl.textContent = `Loaded back: ${file.name}`;
     });
 
     scanBtn.addEventListener("click", async () => {
-      if (!selectedFile || !dataUrl) {
-        alert("Please choose an image first.");
+      if (!frontDataUrl && !backDataUrl) {
+        alert("Please upload at least one image.");
         return;
       }
 
       scanBtn.disabled = true;
+      ocrFrontEl.value = "";
+      ocrBackEl.value = "";
+      ocrCombinedEl.value = "";
       bestMatchEl.innerHTML = "Working...";
       candidatesEl.innerHTML = "Working...";
-      ocrText.value = "";
-      statusEl.textContent = "Running OCR...";
 
       try {
-        const { data } = await Tesseract.recognize(dataUrl, "eng", {
-          logger: m => {
-            if (m.status) {
-              statusEl.textContent = `${m.status}${m.progress ? ` (${Math.round(m.progress * 100)}%)` : ""}`;
-            }
-          }
-        });
+        let frontText = "";
+        let backText = "";
 
-        const text = (data.text || "").trim();
-        ocrText.value = text;
-        statusEl.textContent = "OCR complete. Sending text to matcher...";
+        if (frontDataUrl) {
+          statusEl.textContent = "Preprocessing front...";
+          const frontProcessed = await preprocessBottomRegionFromDataUrl(frontDataUrl, 0.30, 2);
+          frontPreview.src = frontProcessed;
+          statusEl.textContent = "Running OCR on front...";
+          frontText = await runOcr(frontProcessed);
+          ocrFrontEl.value = frontText;
+        }
 
-        if (!API_URL || API_URL.includes("PASTE_YOUR_APPS_SCRIPT_WEB_APP_URL_HERE")) {
+        if (backDataUrl) {
+          statusEl.textContent = "Preprocessing back...";
+          const backProcessed = await preprocessFullImageFromDataUrl(backDataUrl, 2);
+          backPreview.src = backProcessed;
+          statusEl.textContent = "Running OCR on back...";
+          backText = await runOcr(backProcessed);
+          ocrBackEl.value = backText;
+        }
+
+        const combinedText = [
+          "BACK OCR:",
+          backText || "",
+          "",
+          "FRONT OCR:",
+          frontText || ""
+        ].join("\n").trim();
+
+        ocrCombinedEl.value = combinedText;
+        statusEl.textContent = "Sending OCR to matcher...";
+
+        if (!API_URL || API_URL.includes("https://script.google.com/macros/s/AKfycbzefOC2gmHqn9Od8MQJyO1yG8JrKfsJ5ui4cqyIUvjBEpheDJtaLJCYeBaBQk-BIuXFyw/exec")) {
           bestMatchEl.innerHTML = "<span class='muted'>OCR complete. Add your Apps Script URL next.</span>";
           candidatesEl.innerHTML = "";
           scanBtn.disabled = false;
@@ -221,7 +255,9 @@
           headers: { "Content-Type": "text/plain;charset=utf-8" },
           body: JSON.stringify({
             route: "scan_match",
-            ocr_text: text
+            ocr_text: combinedText,
+            ocr_front: frontText,
+            ocr_back: backText
           })
         });
 
@@ -238,6 +274,93 @@
       }
     });
 
+    async function runOcr(dataUrl) {
+      const { data } = await Tesseract.recognize(dataUrl, "eng", {
+        logger: m => {
+          if (m.status) {
+            statusEl.textContent = `${m.status}${m.progress ? ` (${Math.round(m.progress * 100)}%)` : ""}`;
+          }
+        }
+      });
+      return (data.text || "").trim();
+    }
+
+    function fileToDataUrl(file) {
+      return new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = e => resolve(e.target.result);
+        reader.onerror = reject;
+        reader.readAsDataURL(file);
+      });
+    }
+
+    function preprocessBottomRegionFromDataUrl(dataUrl, cropRatio = 0.30, scale = 2) {
+      return new Promise((resolve, reject) => {
+        const img = new Image();
+        img.onload = () => {
+          const sw = img.width;
+          const sh = img.height;
+          const cropHeight = Math.floor(sh * cropRatio);
+          const sy = sh - cropHeight;
+
+          const canvas = document.createElement("canvas");
+          const ctx = canvas.getContext("2d");
+          canvas.width = sw * scale;
+          canvas.height = cropHeight * scale;
+
+          ctx.drawImage(
+            img,
+            0, sy, sw, cropHeight,
+            0, 0, canvas.width, canvas.height
+          );
+
+          applyBasicBwFilter(ctx, canvas.width, canvas.height);
+          resolve(canvas.toDataURL("image/png"));
+        };
+        img.onerror = reject;
+        img.src = dataUrl;
+      });
+    }
+
+    function preprocessFullImageFromDataUrl(dataUrl, scale = 2) {
+      return new Promise((resolve, reject) => {
+        const img = new Image();
+        img.onload = () => {
+          const canvas = document.createElement("canvas");
+          const ctx = canvas.getContext("2d");
+
+          canvas.width = img.width * scale;
+          canvas.height = img.height * scale;
+
+          ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+          applyBasicBwFilter(ctx, canvas.width, canvas.height);
+          resolve(canvas.toDataURL("image/png"));
+        };
+        img.onerror = reject;
+        img.src = dataUrl;
+      });
+    }
+
+    function applyBasicBwFilter(ctx, w, h) {
+      const imageData = ctx.getImageData(0, 0, w, h);
+      const data = imageData.data;
+
+      for (let i = 0; i < data.length; i += 4) {
+        const r = data[i];
+        const g = data[i + 1];
+        const b = data[i + 2];
+
+        let gray = 0.299 * r + 0.587 * g + 0.114 * b;
+        gray = gray > 155 ? 255 : gray < 105 ? 0 : gray;
+
+        data[i] = gray;
+        data[i + 1] = gray;
+        data[i + 2] = gray;
+      }
+
+      ctx.putImageData(imageData, 0, 0);
+    }
+
     function renderResults(json) {
       if (!json || !json.ok) {
         bestMatchEl.innerHTML = `<span class="muted">No valid response from matcher.</span>`;
@@ -252,19 +375,14 @@
         bestMatchEl.innerHTML = `
           <div class="result-item">
             <div><strong>${escapeHtml(best.player || "")}</strong> #${escapeHtml(best.card_no || "")}</div>
-            <div class="muted" style="margin-top:6px;">
-              ${escapeHtml(best.release_name || best.code || "")}
-            </div>
-            <div class="muted" style="margin-top:6px;">
-              ${escapeHtml(best.team || "")} · ${escapeHtml(best.section || "")} · ${escapeHtml(best.subset || "")}
-            </div>
-            <div style="margin-top:8px;">
-              <span class="score">Score: ${best.score ?? 0}</span>
-            </div>
+            <div class="muted" style="margin-top:6px;">${escapeHtml(best.release_name || best.code || "")}</div>
+            <div class="muted" style="margin-top:6px;">${escapeHtml(best.team || "")} · ${escapeHtml(best.section || "")} · ${escapeHtml(best.subset || "")}</div>
+            <div style="margin-top:8px;"><span class="score">Score: ${best.score ?? 0}</span></div>
             <div style="margin-top:10px;">
               <span class="tag">Player parsed: ${escapeHtml(parsed.player || "—")}</span>
               <span class="tag">Card no parsed: ${escapeHtml(parsed.card_no || "—")}</span>
               <span class="tag">Team parsed: ${escapeHtml(parsed.team || "—")}</span>
+              <span class="tag">Year parsed: ${escapeHtml(parsed.year || "—")}</span>
             </div>
           </div>
         `;
@@ -282,9 +400,7 @@
         <div class="result-item">
           <div><strong>${escapeHtml(c.player || "")}</strong> #${escapeHtml(c.card_no || "")}</div>
           <div class="muted" style="margin-top:6px;">${escapeHtml(c.release_name || c.code || "")}</div>
-          <div class="muted" style="margin-top:6px;">
-            ${escapeHtml(c.team || "")} · ${escapeHtml(c.section || "")} · ${escapeHtml(c.subset || "")}
-          </div>
+          <div class="muted" style="margin-top:6px;">${escapeHtml(c.team || "")} · ${escapeHtml(c.section || "")} · ${escapeHtml(c.subset || "")}</div>
           <div style="margin-top:8px;"><span class="score">Score: ${c.score ?? 0}</span></div>
         </div>
       `).join("");
